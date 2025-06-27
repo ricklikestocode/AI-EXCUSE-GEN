@@ -1,7 +1,0 @@
-streamlit
-transformers
-torch
-gtts
-faker
-reportlab
-deep-translator
