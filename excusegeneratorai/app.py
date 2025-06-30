@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from transformers import pipeline, GPT2LMHeadModel, GPT2Tokenizer
 from gtts import gTTS
 from io import BytesIO
@@ -13,7 +14,7 @@ st.set_page_config(page_title="Excuse Generator", layout="centered")
 st.title("🎭 AI Excuse Generator")
 fake = Faker()
 
-for k in ["excuses"]:
+for k in ["excuses", "apologies", "emergencies", "feedback"]:
     if k not in st.session_state:
         st.session_state[k] = []
 
@@ -49,7 +50,7 @@ def load():
 e_gen, a_gen, em_gen = load()
 
 p_lock = st.sidebar.checkbox("Parental Filter", value=True)
-mode = st.selectbox("Mode", ["Excuse", "Apology (demo)", "Emergency (demo)"])
+mode = st.selectbox("Mode", ["Excuse", "Apology", "Emergency"])
 langs = {"English": "en", "Hindi": "hi", "French": "fr", "Spanish": "es"}
 lang = st.selectbox("Language", list(langs.keys()))
 code = langs[lang]
@@ -74,7 +75,7 @@ if mode == "Excuse":
                 st.download_button("Download PDF", f, "excuse.pdf")
             st.session_state.excuses.append({"time": datetime.now(), "text": t})
 
-elif mode == "Apology (demo)":
+elif mode == "Apology":
     style = st.selectbox("Type", ["emotional", "professional"])
     if st.button("Generate"):
         t = gen(f"{style} :", a_gen)
@@ -86,8 +87,9 @@ elif mode == "Apology (demo)":
             st.audio(speak(out, code))
             with open(pdf(t, "Apology"), "rb") as f:
                 st.download_button("Download PDF", f, "apology.pdf")
+            st.session_state.apologies.append({"time": datetime.now(), "text": t})
 
-elif mode == "Emergency (demo)":
+elif mode == "Emergency":
     s = st.selectbox("Type", ["work", "family", "school"])
     if st.button("Generate"):
         t = gen(f"{s} :", em_gen)
@@ -99,4 +101,6 @@ elif mode == "Emergency (demo)":
             st.audio(speak(out, code))
             with open(pdf(t, "Emergency"), "rb") as f:
                 st.download_button("Download PDF", f, "emergency.pdf")
+            st.session_state.emergencies.append({"time": datetime.now(), "text": t})
+
 
