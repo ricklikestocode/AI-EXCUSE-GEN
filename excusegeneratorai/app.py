@@ -30,7 +30,7 @@ def pdf(text, title="Generated"):
     c.setFont("Helvetica-Bold", 16)
     c.drawString(50, 750, title)
     c.setFont("Helvetica", 12)
-    c.drawString(50, 730, datetime.now().strftime('%d/%m/%Y'))
+    c.drawString(50, 730, f"Date: {datetime.now().strftime('%d/%m/%Y')}")
     for i, line in enumerate(text.splitlines()):
         c.drawString(50, 700 - i*20, line)
     c.save()
@@ -44,8 +44,17 @@ def clean(t, f):
 def load():
     tok = GPT2Tokenizer.from_pretrained("gpt2")
     tok.pad_token = tok.eos_token
-    g = lambda n: pipeline("text-generation", model=GPT2LMHeadModel.from_pretrained(n), tokenizer=tok)
-    return g("rutwikvadali/gpt2-finetuned-excuses"), g("rutwikvadali/gpt2-finetuned-apologies"), g("rutwikvadali/gpt2-finetuned-emergency")
+    token = "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"
+    g = lambda n: pipeline(
+        "text-generation",
+        model=GPT2LMHeadModel.from_pretrained(n, token=token),
+        tokenizer=tok
+    )
+    return (
+        g("rutwikvadali/gpt2-finetuned-excuses"),
+        g("rutwikvadali/gpt2-finetuned-apologies"),
+        g("rutwikvadali/gpt2-finetuned-emergency"),
+    )
 
 e_gen, a_gen, em_gen = load()
 
@@ -102,3 +111,4 @@ elif mode == "Emergency":
             with open(pdf(t, "Emergency"), "rb") as f:
                 st.download_button("Download PDF", f, "emergency.pdf")
             st.session_state.emergencies.append({"time": datetime.now(), "text": t})
+
