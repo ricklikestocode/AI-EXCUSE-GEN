@@ -45,7 +45,7 @@ def load():
     tok = GPT2Tokenizer.from_pretrained("gpt2")
     tok.pad_token = tok.eos_token
     g = lambda n: pipeline("text-generation", model=GPT2LMHeadModel.from_pretrained(n), tokenizer=tok)
-    return g("rutwik/gpt2-finetuned-excuses"), g("rutwik/gpt2-finetuned-apologies"), g("rutwik/gpt2-finetuned-emergency")
+    return g("rutwikvadali/gpt2-finetuned-excuses"), g("rutwikvadali/gpt2-finetuned-apologies"), g("rutwikvadali/gpt2-finetuned-emergency")
 
 e_gen, a_gen, em_gen = load()
 
