@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 from transformers import pipeline, GPT2LMHeadModel, GPT2Tokenizer
 from gtts import gTTS
 from io import BytesIO
@@ -14,7 +13,7 @@ st.set_page_config(page_title="Excuse Generator", layout="centered")
 st.title("🎭 AI Excuse Generator")
 fake = Faker()
 
-for k in ["excuses", "apologies", "emergencies", "feedback"]:
+for k in ["excuses"]:
     if k not in st.session_state:
         st.session_state[k] = []
 
@@ -44,21 +43,13 @@ def clean(t, f):
 def load():
     tok = GPT2Tokenizer.from_pretrained("gpt2")
     tok.pad_token = tok.eos_token
-    g = lambda n: pipeline(
-        "text-generation",
-        model=GPT2LMHeadModel.from_pretrained(n, token="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"),
-        tokenizer=tok
-    )
-    return (
-        g("rutwikvadali/gpt2-finetuned-excuses"),
-        g("rutwikvadali/gpt2-finetuned-apologies"),
-        g("rutwikvadali/gpt2-finetuned-emergency")
-    )
+    g = lambda n: pipeline("text-generation", model=GPT2LMHeadModel.from_pretrained(n), tokenizer=tok)
+    return g("rutwikvadali/gpt2-finetuned-excuses"), g("gpt2"), g("gpt2")
 
 e_gen, a_gen, em_gen = load()
 
 p_lock = st.sidebar.checkbox("Parental Filter", value=True)
-mode = st.selectbox("Mode", ["Excuse", "Apology", "Emergency"])
+mode = st.selectbox("Mode", ["Excuse", "Apology (demo)", "Emergency (demo)"])
 langs = {"English": "en", "Hindi": "hi", "French": "fr", "Spanish": "es"}
 lang = st.selectbox("Language", list(langs.keys()))
 code = langs[lang]
@@ -83,7 +74,7 @@ if mode == "Excuse":
                 st.download_button("Download PDF", f, "excuse.pdf")
             st.session_state.excuses.append({"time": datetime.now(), "text": t})
 
-elif mode == "Apology":
+elif mode == "Apology (demo)":
     style = st.selectbox("Type", ["emotional", "professional"])
     if st.button("Generate"):
         t = gen(f"{style} :", a_gen)
@@ -95,9 +86,8 @@ elif mode == "Apology":
             st.audio(speak(out, code))
             with open(pdf(t, "Apology"), "rb") as f:
                 st.download_button("Download PDF", f, "apology.pdf")
-            st.session_state.apologies.append({"time": datetime.now(), "text": t})
 
-elif mode == "Emergency":
+elif mode == "Emergency (demo)":
     s = st.selectbox("Type", ["work", "family", "school"])
     if st.button("Generate"):
         t = gen(f"{s} :", em_gen)
@@ -109,4 +99,4 @@ elif mode == "Emergency":
             st.audio(speak(out, code))
             with open(pdf(t, "Emergency"), "rb") as f:
                 st.download_button("Download PDF", f, "emergency.pdf")
-            st.session_state.emergencies.append({"time": datetime.now(), "text": t})
+
