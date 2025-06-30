@@ -1,22 +1,20 @@
 import streamlit as st
-import pandas as pd
 from transformers import pipeline, GPT2LMHeadModel, GPT2Tokenizer
 from gtts import gTTS
 from io import BytesIO
-from faker import Faker
 from datetime import datetime
 from deep_translator import GoogleTranslator
 import tempfile
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import LETTER
 
-st.set_page_config(page_title="Excuse Generator", layout="centered")
+st.set_page_config(page_title="AI Excuse Generator", layout="centered")
 st.title("🎭 AI Excuse Generator")
-fake = Faker()
 
-for k in ["excuses", "apologies", "emergencies"]:
-    if k not in st.session_state:
-        st.session_state[k] = []
+# Initialize session state for history
+for key in ["excuses", "apologies", "emergencies"]:
+    if key not in st.session_state:
+        st.session_state[key] = []
 
 def speak(text, lang='en'):
     f = BytesIO()
@@ -44,11 +42,10 @@ def clean(t, f):
 def load():
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
     tokenizer.pad_token = tokenizer.eos_token
-    make_pipeline = lambda model_name: pipeline(
-        "text-generation",
-        model=GPT2LMHeadModel.from_pretrained(model_name),
-        tokenizer=tokenizer
-    )
+    def make_pipeline(model_name):
+        return pipeline("text-generation",
+                        model=GPT2LMHeadModel.from_pretrained(model_name),
+                        tokenizer=tokenizer)
     return (
         make_pipeline("rutwikvadali/gpt2-finetuned-excuses"),
         make_pipeline("rutwikvadali/gpt2-finetuned-apologies"),
@@ -64,7 +61,7 @@ lang = st.selectbox("Language", list(langs.keys()))
 code = langs[lang]
 
 def gen(prompt, generator):
-    result = generator(prompt, max_length=50, do_sample=True, top_k=50, top_p=0.95)[0]["generated_text"]
+    result = generator(prompt + "\n", max_length=80, do_sample=True, top_k=50, top_p=0.95, temperature=0.9)[0]["generated_text"]
     text = result[len(prompt):].strip().split(".")[0] + "."
     return text
 
@@ -76,7 +73,7 @@ def safe_display(t):
 
 if mode == "Excuse":
     sc = st.text_input("Scenario | Urgency | Believability", "work | high | high")
-    rs = st.text_input("Reason", "Late to school")
+    rs = st.text_input("Reason", "I missed the deadline")
     if st.button("Generate"):
         prompt = f"Excuse: {rs}. Scenario: {sc}."
         text = gen(prompt, e_gen)
