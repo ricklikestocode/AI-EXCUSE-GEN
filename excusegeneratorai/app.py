@@ -44,16 +44,15 @@ def clean(t, f):
 def load():
     tok = GPT2Tokenizer.from_pretrained("gpt2")
     tok.pad_token = tok.eos_token
-    token = "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"
     g = lambda n: pipeline(
         "text-generation",
-        model=GPT2LMHeadModel.from_pretrained(n, token=token),
+        model=GPT2LMHeadModel.from_pretrained(n, token="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"),
         tokenizer=tok
     )
     return (
         g("rutwikvadali/gpt2-finetuned-excuses"),
         g("rutwikvadali/gpt2-finetuned-apologies"),
-        g("rutwikvadali/gpt2-finetuned-emergency"),
+        g("rutwikvadali/gpt2-finetuned-emergency")
     )
 
 e_gen, a_gen, em_gen = load()
@@ -111,4 +110,3 @@ elif mode == "Emergency":
             with open(pdf(t, "Emergency"), "rb") as f:
                 st.download_button("Download PDF", f, "emergency.pdf")
             st.session_state.emergencies.append({"time": datetime.now(), "text": t})
-
