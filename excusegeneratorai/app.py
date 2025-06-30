@@ -30,7 +30,7 @@ def pdf(text, title="Generated"):
     c.setFont("Helvetica-Bold", 16)
     c.drawString(50, 750, title)
     c.setFont("Helvetica", 12)
-    c.drawString(50, 730, f"Date: {datetime.now().strftime('%d/%m/%Y')}")
+    c.drawString(50, 730, datetime.now().strftime('%d/%m/%Y'))
     for i, line in enumerate(text.splitlines()):
         c.drawString(50, 700 - i*20, line)
     c.save()
