@@ -14,7 +14,7 @@ st.set_page_config(page_title="Excuse Generator", layout="centered")
 st.title("🎭 AI Excuse Generator")
 fake = Faker()
 
-for k in ["excuses", "apologies", "emergencies", "feedback"]:
+for k in ["excuses", "apologies", "emergencies"]:
     if k not in st.session_state:
         st.session_state[k] = []
 
@@ -37,15 +37,23 @@ def pdf(text, title="Generated"):
     return tmp.name
 
 def clean(t, f):
-    b = ["suicide", "murder", "sex", "alcohol", "drugs"]
-    return not any(x in t.lower() for x in b) if f else True
+    banned = ["suicide", "murder", "sex", "alcohol", "drugs"]
+    return not any(x in t.lower() for x in banned) if f else True
 
 @st.cache_resource
 def load():
-    tok = GPT2Tokenizer.from_pretrained("gpt2")
-    tok.pad_token = tok.eos_token
-    g = lambda n: pipeline("text-generation", model=GPT2LMHeadModel.from_pretrained(n), tokenizer=tok)
-    return g("rutwikvadali/gpt2-finetuned-excuses"), g("gpt2"), g("gpt2")
+    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    tokenizer.pad_token = tokenizer.eos_token
+    make_pipeline = lambda model_name: pipeline(
+        "text-generation",
+        model=GPT2LMHeadModel.from_pretrained(model_name),
+        tokenizer=tokenizer
+    )
+    return (
+        make_pipeline("rutwikvadali/gpt2-finetuned-excuses"),
+        make_pipeline("rutwikvadali/gpt2-finetuned-apologies"),
+        make_pipeline("rutwikvadali/gpt2-finetuned-emergency"),
+    )
 
 e_gen, a_gen, em_gen = load()
 
@@ -55,52 +63,55 @@ langs = {"English": "en", "Hindi": "hi", "French": "fr", "Spanish": "es"}
 lang = st.selectbox("Language", list(langs.keys()))
 code = langs[lang]
 
-def gen(p, g):
-    o = g(p, max_length=40)[0]['generated_text']
-    return o[len(p):].split('.')[0] + '.'
+def gen(prompt, generator):
+    result = generator(prompt, max_length=50, do_sample=True, top_k=50, top_p=0.95)[0]["generated_text"]
+    text = result[len(prompt):].strip().split(".")[0] + "."
+    return text
+
+def safe_display(t):
+    if not t or any(c in t for c in "|{}[]#@"):
+        st.error("⚠️ Sorry, that didn't work. Try again.")
+        return False
+    return True
 
 if mode == "Excuse":
     sc = st.text_input("Scenario | Urgency | Believability", "work | high | high")
-    rs = st.text_input("Reason", "Late submission")
+    rs = st.text_input("Reason", "Late to school")
     if st.button("Generate"):
-        p = f"{sc} :"
-        t = gen(p, e_gen)
-        if not clean(t, p_lock):
-            st.error("🚫 Blocked")
-        else:
-            out = GoogleTranslator(source='auto', target=code).translate(t) if code != 'en' else t
+        prompt = f"Excuse: {rs}. Scenario: {sc}."
+        text = gen(prompt, e_gen)
+        if clean(text, p_lock) and safe_display(text):
+            out = GoogleTranslator(source="auto", target=code).translate(text) if code != "en" else text
             st.success(out)
             st.audio(speak(out, code))
-            with open(pdf(t, "Excuse"), "rb") as f:
+            with open(pdf(text, "Excuse"), "rb") as f:
                 st.download_button("Download PDF", f, "excuse.pdf")
-            st.session_state.excuses.append({"time": datetime.now(), "text": t})
+            st.session_state.excuses.append({"time": datetime.now(), "text": text})
 
 elif mode == "Apology":
     style = st.selectbox("Type", ["emotional", "professional"])
     if st.button("Generate"):
-        t = gen(f"{style} :", a_gen)
-        if not clean(t, p_lock):
-            st.error("🚫 Blocked")
-        else:
-            out = GoogleTranslator(source='auto', target=code).translate(t) if code != 'en' else t
+        prompt = f"{style} apology:"
+        text = gen(prompt, a_gen)
+        if clean(text, p_lock) and safe_display(text):
+            out = GoogleTranslator(source="auto", target=code).translate(text) if code != "en" else text
             st.success(out)
             st.audio(speak(out, code))
-            with open(pdf(t, "Apology"), "rb") as f:
+            with open(pdf(text, "Apology"), "rb") as f:
                 st.download_button("Download PDF", f, "apology.pdf")
-            st.session_state.apologies.append({"time": datetime.now(), "text": t})
+            st.session_state.apologies.append({"time": datetime.now(), "text": text})
 
 elif mode == "Emergency":
-    s = st.selectbox("Type", ["work", "family", "school"])
+    kind = st.selectbox("Type", ["work", "family", "school"])
     if st.button("Generate"):
-        t = gen(f"{s} :", em_gen)
-        if not clean(t, p_lock):
-            st.error("🚫 Blocked")
-        else:
-            out = GoogleTranslator(source='auto', target=code).translate(t) if code != 'en' else t
+        prompt = f"{kind} emergency:"
+        text = gen(prompt, em_gen)
+        if clean(text, p_lock) and safe_display(text):
+            out = GoogleTranslator(source="auto", target=code).translate(text) if code != "en" else text
             st.success(out)
             st.audio(speak(out, code))
-            with open(pdf(t, "Emergency"), "rb") as f:
+            with open(pdf(text, "Emergency"), "rb") as f:
                 st.download_button("Download PDF", f, "emergency.pdf")
-            st.session_state.emergencies.append({"time": datetime.now(), "text": t})
+            st.session_state.emergencies.append({"time": datetime.now(), "text": text})
 
 
