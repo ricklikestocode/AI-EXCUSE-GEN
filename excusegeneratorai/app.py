@@ -1,32 +1,29 @@
 import streamlit as st
-import pandas as pd
 from transformers import pipeline, GPT2LMHeadModel, GPT2Tokenizer
 from gtts import gTTS
 from io import BytesIO
-from faker import Faker
 from datetime import datetime
 from deep_translator import GoogleTranslator
 import tempfile
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import LETTER
-from huggingface_hub import login
-
-
 
 st.set_page_config(page_title="Excuse Generator", layout="centered")
 st.title("🎭 AI Excuse Generator")
-fake = Faker()
 
+# Session State
 for k in ["excuses", "apologies", "emergencies"]:
     if k not in st.session_state:
         st.session_state[k] = []
 
+# Voice output
 def speak(text, lang='en'):
     f = BytesIO()
     gTTS(text, lang=lang).write_to_fp(f)
     f.seek(0)
     return f
 
+# PDF download
 def pdf(text, title="Generated"):
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     c = canvas.Canvas(tmp.name, pagesize=LETTER)
@@ -39,22 +36,22 @@ def pdf(text, title="Generated"):
     c.save()
     return tmp.name
 
-def clean(t, f):
+# Parental Filter
+def clean(t, enable_filter=True):
     banned = ["suicide", "murder", "sex", "alcohol", "drugs"]
-    return not any(x in t.lower() for x in banned) if f else True
+    return not any(x in t.lower() for x in banned) if enable_filter else True
 
+# Load models
 @st.cache_resource
 def load():
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
     tokenizer.pad_token = tokenizer.eos_token
-
     def make_pipeline(model_name):
         return pipeline(
             "text-generation",
             model=GPT2LMHeadModel.from_pretrained(model_name),
             tokenizer=tokenizer
         )
-
     return (
         make_pipeline("rutwikvadali/gpt2-finetuned-excuses"),
         make_pipeline("rutwikvadali/gpt2-finetuned-apologies"),
@@ -63,26 +60,30 @@ def load():
 
 e_gen, a_gen, em_gen = load()
 
+# UI Controls
 p_lock = st.sidebar.checkbox("Parental Filter", value=True)
 mode = st.selectbox("Mode", ["Excuse", "Apology", "Emergency"])
 langs = {"English": "en", "Hindi": "hi", "French": "fr", "Spanish": "es"}
 lang = st.selectbox("Language", list(langs.keys()))
 code = langs[lang]
 
+# Text generation utility
 def gen(prompt, generator):
     result = generator(prompt, max_length=50, do_sample=True, top_k=50, top_p=0.95)[0]["generated_text"]
     text = result[len(prompt):].strip().split(".")[0] + "."
     return text
 
+# Output checker
 def safe_display(t):
     if not t or any(c in t for c in "|{}[]#@"):
         st.error("⚠️ Sorry, that didn't work. Try again.")
         return False
     return True
 
+# Excuse Generator
 if mode == "Excuse":
     sc = st.text_input("Scenario | Urgency | Believability", "work | high | high")
-    rs = st.text_input("Reason", "Late to school")
+    rs = st.text_input("Reason", "Internet issue")
     if st.button("Generate"):
         prompt = f"Excuse: {rs}. Scenario: {sc}."
         text = gen(prompt, e_gen)
@@ -94,6 +95,7 @@ if mode == "Excuse":
                 st.download_button("Download PDF", f, "excuse.pdf")
             st.session_state.excuses.append({"time": datetime.now(), "text": text})
 
+# Apology Generator
 elif mode == "Apology":
     style = st.selectbox("Type", ["emotional", "professional"])
     if st.button("Generate"):
@@ -107,6 +109,7 @@ elif mode == "Apology":
                 st.download_button("Download PDF", f, "apology.pdf")
             st.session_state.apologies.append({"time": datetime.now(), "text": text})
 
+# Emergency Generator
 elif mode == "Emergency":
     kind = st.selectbox("Type", ["work", "family", "school"])
     if st.button("Generate"):
@@ -119,3 +122,4 @@ elif mode == "Emergency":
             with open(pdf(text, "Emergency"), "rb") as f:
                 st.download_button("Download PDF", f, "emergency.pdf")
             st.session_state.emergencies.append({"time": datetime.now(), "text": text})
+
