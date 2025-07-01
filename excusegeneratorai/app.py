@@ -11,7 +11,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import LETTER
 from huggingface_hub import login
 
-login("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")
+
 
 st.set_page_config(page_title="Excuse Generator", layout="centered")
 st.title("🎭 AI Excuse Generator")
