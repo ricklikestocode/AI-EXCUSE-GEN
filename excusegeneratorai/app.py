@@ -1,125 +1,84 @@
 import streamlit as st
-from transformers import pipeline, GPT2LMHeadModel, GPT2Tokenizer
-from gtts import gTTS
-from io import BytesIO
-from datetime import datetime
-from deep_translator import GoogleTranslator
-import tempfile
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import LETTER
+import requests
+import datetime
+import sqlite3
 
-st.set_page_config(page_title="Excuse Generator", layout="centered")
-st.title("🎭 AI Excuse Generator")
+# === Config ===
+API_URL = "https://api.groq.com/openai/v1/chat/completions"
+API_KEY = "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"
+HEADERS = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json"
+}
 
-# Session State
-for k in ["excuses", "apologies", "emergencies"]:
-    if k not in st.session_state:
-        st.session_state[k] = []
+def translate_to_english(text):
+    # Optionally use a translation API or model
+    return text  # Placeholder: assume input is English
 
-# Voice output
-def speak(text, lang='en'):
-    f = BytesIO()
-    gTTS(text, lang=lang).write_to_fp(f)
-    f.seek(0)
-    return f
+def generate_excuse(prompt):
+    translated = translate_to_english(prompt)
+    payload = {
+        "model": "llama3-8b-8192",
+        "messages": [
+            {"role": "system", "content": "Generate a creative and believable excuse in 1-2 lines."},
+            {"role": "user", "content": translated}
+        ],
+        "temperature": 0.8
+    }
+    res = requests.post(API_URL, headers=HEADERS, json=payload)
+    res.raise_for_status()
+    return res.json()['choices'][0]['message']['content'].strip()
 
-# PDF download
-def pdf(text, title="Generated"):
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    c = canvas.Canvas(tmp.name, pagesize=LETTER)
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, 750, title)
-    c.setFont("Helvetica", 12)
-    c.drawString(50, 730, f"Date: {datetime.now().strftime('%d/%m/%Y')}")
-    for i, line in enumerate(text.splitlines()):
-        c.drawString(50, 700 - i*20, line)
-    c.save()
-    return tmp.name
-
-# Parental Filter
-def clean(t, enable_filter=True):
-    banned = ["suicide", "murder", "sex", "alcohol", "drugs"]
-    return not any(x in t.lower() for x in banned) if enable_filter else True
-
-# Load models
-@st.cache_resource
-def load():
-    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-    tokenizer.pad_token = tokenizer.eos_token
-    def make_pipeline(model_name):
-        return pipeline(
-            "text-generation",
-            model=GPT2LMHeadModel.from_pretrained(model_name),
-            tokenizer=tokenizer
-        )
-    return (
-        make_pipeline("rutwikvadali/gpt2-finetuned-excuses"),
-        make_pipeline("rutwikvadali/gpt2-finetuned-apologies"),
-        make_pipeline("rutwikvadali/gpt2-finetuned-emergency"),
+def init_db():
+    conn = sqlite3.connect("history.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        prompt TEXT,
+        excuse TEXT,
+        timestamp TEXT
     )
+    """)
+    conn.commit()
+    conn.close()
 
-e_gen, a_gen, em_gen = load()
+def log_history(prompt, excuse):
+    conn = sqlite3.connect("history.db")
+    cursor = conn.cursor()
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("INSERT INTO history (prompt, excuse, timestamp) VALUES (?, ?, ?)", (prompt, excuse, timestamp))
+    conn.commit()
+    conn.close()
 
-# UI Controls
-p_lock = st.sidebar.checkbox("Parental Filter", value=True)
-mode = st.selectbox("Mode", ["Excuse", "Apology", "Emergency"])
-langs = {"English": "en", "Hindi": "hi", "French": "fr", "Spanish": "es"}
-lang = st.selectbox("Language", list(langs.keys()))
-code = langs[lang]
+def get_history():
+    conn = sqlite3.connect("history.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT prompt, excuse, timestamp FROM history ORDER BY id DESC LIMIT 20")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
 
-# Text generation utility
-def gen(prompt, generator):
-    result = generator(prompt, max_length=50, do_sample=True, top_k=50, top_p=0.95)[0]["generated_text"]
-    text = result[len(prompt):].strip().split(".")[0] + "."
-    return text
+# === Streamlit App ===
+st.set_page_config(page_title="Rutwik's Official Excuse Generator AI")
+st.title("🤖 Rutwik's Official Excuse Generator AI")
 
-# Output checker
-def safe_display(t):
-    if not t or any(c in t for c in "|{}[]#@"):
-        st.error("⚠️ Sorry, that didn't work. Try again.")
-        return False
-    return True
+init_db()
 
-# Excuse Generator
-if mode == "Excuse":
-    sc = st.text_input("Scenario | Urgency | Believability", "work | high | high")
-    rs = st.text_input("Reason", "Internet issue")
-    if st.button("Generate"):
-        prompt = f"Excuse: {rs}. Scenario: {sc}."
-        text = gen(prompt, e_gen)
-        if clean(text, p_lock) and safe_display(text):
-            out = GoogleTranslator(source="auto", target=code).translate(text) if code != "en" else text
-            st.success(out)
-            st.audio(speak(out, code))
-            with open(pdf(text, "Excuse"), "rb") as f:
-                st.download_button("Download PDF", f, "excuse.pdf")
-            st.session_state.excuses.append({"time": datetime.now(), "text": text})
+with st.form("excuse_form"):
+    user_input = st.text_area("🌍 Enter your situation (in any language):", height=100)
+    submitted = st.form_submit_button("Generate Excuse")
 
-# Apology Generator
-elif mode == "Apology":
-    style = st.selectbox("Type", ["emotional", "professional"])
-    if st.button("Generate"):
-        prompt = f"{style} apology:"
-        text = gen(prompt, a_gen)
-        if clean(text, p_lock) and safe_display(text):
-            out = GoogleTranslator(source="auto", target=code).translate(text) if code != "en" else text
-            st.success(out)
-            st.audio(speak(out, code))
-            with open(pdf(text, "Apology"), "rb") as f:
-                st.download_button("Download PDF", f, "apology.pdf")
-            st.session_state.apologies.append({"time": datetime.now(), "text": text})
+if submitted and user_input:
+    with st.spinner("Thinking hard for you..."):
+        try:
+            excuse = generate_excuse(user_input)
+            log_history(user_input, excuse)
+            st.success("✅ Here's your excuse:")
+            st.write(excuse)
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
 
-# Emergency Generator
-elif mode == "Emergency":
-    kind = st.selectbox("Type", ["work", "family", "school"])
-    if st.button("Generate"):
-        prompt = f"{kind} emergency:"
-        text = gen(prompt, em_gen)
-        if clean(text, p_lock) and safe_display(text):
-            out = GoogleTranslator(source="auto", target=code).translate(text) if code != "en" else text
-            st.success(out)
-            st.audio(speak(out, code))
-            with open(pdf(text, "Emergency"), "rb") as f:
-                st.download_button("Download PDF", f, "emergency.pdf")
-            st.session_state.emergencies.append({"time": datetime.now(), "text": text})
-
+st.subheader("📜 Excuse History")
+for prompt, excuse, timestamp in get_history():
+    st.markdown(f"**🕒 {timestamp}**\n- ❓ Prompt: {prompt}\n- 💬 Excuse: {excuse}")
